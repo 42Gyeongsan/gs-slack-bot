@@ -36,6 +36,7 @@ pub enum GsctlCommand {
     Home(Option<SubCommand>),
     Goinfre(Option<SubCommand>),
     Help,
+    Error(String),
 }
 
 fn check_hostname(raw_text: &str) -> bool {
@@ -51,64 +52,74 @@ impl GsctlCommand {
     ) -> Self {
         let mut token = context.text.split_whitespace();
 
-        match token.next() {
-            Some(subcommand) => match subcommand {
-                "reboot" => {
-                    let location = match token.next() {
-                        Some(location) if check_hostname(location) => {
-                            ft_api::FtHost(location.to_string())
-                        }
-                        Some(_) => return GsctlCommand::Help,
-                        None => {
-                            let info = AuthInfo::build_from_env().unwrap();
-                            let token = FtApiToken::try_get(info).await.unwrap();
-                            let session = ft_client.open_session(&token);
+        if let Some("$gsctl") = token.next() {
+            match token.next() {
+                Some(subcommand) => match subcommand {
+                    "reboot" => {
+                        let location = match token.next() {
+                            Some(location) if check_hostname(location) => {
+                                ft_api::FtHost(location.to_string())
+                            }
+                            Some(_) => return GsctlCommand::Help,
+                            None => {
+                                let info = AuthInfo::build_from_env().unwrap();
+                                let token = FtApiToken::try_get(info).await.unwrap();
+                                let session = ft_client.open_session(&token);
 
-                            let res = session
-                                .campus_id_locations(
-                                    FtApiCampusLocationsRequest::new(FtCampusId::new(GS_CAMPUS_ID))
-                                        .with_filter(vec![FtFilterOption::new(
-                                            FtFilterField::Active,
-                                            vec!["true".to_string()],
-                                        )]),
-                                )
-                                .await
-                                .unwrap();
+                                let res =
+                                    session
+                                        .campus_id_locations(
+                                            FtApiCampusLocationsRequest::new(FtCampusId::new(
+                                                GS_CAMPUS_ID,
+                                            ))
+                                            .with_filter(vec![FtFilterOption::new(
+                                                FtFilterField::Active,
+                                                vec!["true".to_string()],
+                                            )]),
+                                        )
+                                        .await
+                                        .unwrap();
 
-                            res.location
-                                .into_iter()
-                                .find(|lo| {
+                                match res.location.into_iter().find(|lo| {
                                     if let Some(name) = &lo.user.login {
                                         name.to_string() == context.real_name
                                     } else {
                                         false
                                     }
-                                })
-                                .unwrap()
-                                .host
-                        }
-                    };
+                                }) {
+                                    Some(location) => location.host,
+                                    None => {
+                                        return GsctlCommand::Error(
+                                            "location not found!".to_string(),
+                                        )
+                                    }
+                                }
+                            }
+                        };
 
-                    GsctlCommand::Reboot(location)
-                }
-                "home" => {
-                    let subcommand = match token.next() {
-                        Some("reset") => Some(SubCommand::Reset),
-                        Some("close") => Some(SubCommand::Close),
-                        _ => Some(SubCommand::Help),
-                    };
-                    GsctlCommand::Home(subcommand)
-                }
-                "goinfre" => {
-                    let subcommand = match token.next() {
-                        Some("reset") => Some(SubCommand::Reset),
-                        _ => Some(SubCommand::Help),
-                    };
-                    GsctlCommand::Goinfre(subcommand)
-                }
-                _ => Self::Help,
-            },
-            None => Self::Help,
+                        GsctlCommand::Reboot(location)
+                    }
+                    "home" => {
+                        let subcommand = match token.next() {
+                            Some("reset") => Some(SubCommand::Reset),
+                            Some("close") => Some(SubCommand::Close),
+                            _ => Some(SubCommand::Help),
+                        };
+                        GsctlCommand::Home(subcommand)
+                    }
+                    "goinfre" => {
+                        let subcommand = match token.next() {
+                            Some("reset") => Some(SubCommand::Reset),
+                            _ => Some(SubCommand::Help),
+                        };
+                        GsctlCommand::Goinfre(subcommand)
+                    }
+                    _ => Self::Help,
+                },
+                None => Self::Help,
+            }
+        } else {
+            Self::Help
         }
     }
 }

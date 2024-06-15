@@ -177,6 +177,7 @@ async fn server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 GsctlCommand::Home(sub) => unimplemented!(),
                 GsctlCommand::Goinfre(sub) => unimplemented!(),
                 GsctlCommand::Help => unimplemented!(),
+                GsctlCommand::Error(msg) => todo!(),
             };
 
             // TODO: send a message according to result of cmd.
@@ -186,7 +187,8 @@ async fn server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .chat_post_message(
                     &SlackApiChatPostMessageRequest::new(
                         task.message_context.channel,
-                        SlackMessageContent::new().with_text("test success!!".to_owned()),
+                        SlackMessageContent::new()
+                            .with_text(format!("Result: {:?}", output.unwrap())),
                     )
                     .with_thread_ts(task.message_context.ts),
                 )
