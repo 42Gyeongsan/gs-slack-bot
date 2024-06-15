@@ -1,39 +1,8 @@
 use ft_api::FtHost;
-use http_body_util::BodyExt;
 use rsb_derive::Builder;
-use serde::{Deserialize, Serialize};
-use std::process::{Command, Output};
-use std::{io, os::unix::process::CommandExt};
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum GstCoreCommand {
-    Reboot,
-    Home,
-    Goinfre,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum RebootSubCommand {
-    Host(String),
-    Help,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum HomeSubCommand {
-    Reset,
-    Close,
-    Help,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum GoinfreSubCommand {
-    Reset,
-    Help,
-}
+use std::io;
+use std::process::Output;
+use tokio::process::Command;
 
 #[derive(Debug, Builder)]
 pub struct SshExcutor<'b, 'r> {
@@ -67,7 +36,7 @@ impl<'b, 'r> SshExcutor<'b, 'r> {
         SshExcutor::new("ansible@ansiblecluster")
     }
 
-    pub fn execute(self) -> io::Result<Output> {
+    pub async fn execute(self) -> io::Result<Output> {
         let mut command = Command::new("ssh");
 
         if let Some(key) = self.ssh_pub_key {
@@ -88,18 +57,18 @@ impl<'b, 'r> SshExcutor<'b, 'r> {
             command.arg(format!("sudo su -l root -c '{}'", remote_cmd.into_string()));
         }
 
-        command.output()
+        command.output().await
     }
 }
 
-#[test]
-fn excute_ansible() {
+#[tokio::test]
+async fn excute_ansible() {
     let location_hostname = FtHost::new("c1r2s3".into());
     let ansible = SshExcutor::new_ansible()
         .with_port(4222)
         .with_remote_cmd(RawCommand::build_reboot(&location_hostname));
 
-    let output = ansible.execute();
+    let output = ansible.execute().await;
 
     assert!(output.is_ok());
 }

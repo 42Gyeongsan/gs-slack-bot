@@ -1,0 +1,9 @@
+SlackPushEventCallback {
+team_id: SlackTeamId("T06P37B2LF6"), api_app_id: SlackAppId("A06RH69CKTR"), event: Message(SlackMessageEvent {
+origin: SlackMessageOrigin {
+ts: SlackTs("1718422438.436039"), channel: Some(SlackChannelId("C06RFSWPMCG")), channel_type: Some(SlackChannelType("channel")), thread_ts: None, client_msg_id: Some(SlackClientMessageId("1323f5bd-b01f-4e75-9a35-f697ebce6869"))
+},
+content: Some(SlackMessageContent {
+text: Some("test23"), blocks: Some([RichText(Object {"block_id": String("Et6U3"), "elements": Array [Object {"elements": Array [Object {"text": String("test23"), "type": String("text")}], "type": String("rich_text_section")}]})]), attachments: None, upload: None, files: None, reactions: None
+}), sender: SlackMessageSender { user: Some(SlackUserId("U076LUG4MUH")), bot_id: None, username: None, display_as_bot: None }, subtype: None, hidden: None, message: None, deleted_ts: None }), event_id: SlackEventId("Ev07890UEGSF"), event_time: SlackDateTime(2024-06-15T03:33:58Z), event_context: Some(SlackEventContext("4-eyJldCI6Im1lc3NhZ2UiLCJ0aWQiOiJUMDZQMzdCMkxGNiIsImFpZCI6IkEwNlJINjlDS1RSIiwiY2lkIjoiQzA2UkZTV1BNQ0cifQ")), authed_users: None, authorizations: Some([SlackEventAuthorization { team_id: SlackTeamId("T06P37B2LF6"), user_id: SlackUserId("U06RXKEDML3"), is_bot: Some(true) }])
+};

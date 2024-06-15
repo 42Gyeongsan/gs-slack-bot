@@ -1,4 +1,8 @@
-use gs_slack_bot::bot_cmd::{self, BotTask, SlackMessageContext};
+use ft_api::{AuthInfo, FtApiToken, FtClient, FtClientReqwestConnector};
+use gs_slack_bot::{
+    bot_cmd::{BotTask, GsctlCommand, SlackMessageContext, SubCommand},
+    excutor::{RawCommand, SshExcutor},
+};
 use slack_morphism::prelude::*;
 
 use bytes::Bytes;
@@ -7,7 +11,7 @@ use http_body_util::{BodyExt, Empty, Full};
 use hyper::Response;
 use tracing::*;
 
-use axum::{handler::Handler, Extension};
+use axum::Extension;
 use std::convert::Infallible;
 use std::sync::Arc;
 use tokio::{net::TcpListener, sync::mpsc, task};
@@ -49,7 +53,9 @@ async fn test_push_event(
                     }),
                 sender:
                     SlackMessageSender {
-                        user: Some(user), ..
+                        user: Some(user),
+                        bot_id: None,
+                        ..
                     },
                 ..
             }) = callback.event
@@ -71,22 +77,20 @@ async fn test_push_event(
                         },
                 }) = user_info
                 {
+                    println!("{real_name}");
                     let bot_cmd = BotTask {
-                        message_context: Some(SlackMessageContext {
+                        message_context: SlackMessageContext {
                             channel,
                             ts,
                             thread_ts,
                             real_name,
                             is_admin,
                             text,
-                        }),
+                        },
                     };
-
                     let _ = sender.send(bot_cmd).await;
                 }
             }
-
-            // let bot_cmd = BotTask::new();
 
             Response::new(Empty::new().boxed())
         }
@@ -130,6 +134,10 @@ async fn server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let (sender, mut receiver) = mpsc::channel::<BotTask>(32);
 
+    let ft_client = Arc::new(FtClient::new(FtClientReqwestConnector::with_connector(
+        reqwest::Client::new(),
+    )));
+
     // build our application route with OAuth nested router and Push/Command/Interaction events
     let app = axum::routing::Router::new()
         .nest(
@@ -153,20 +161,37 @@ async fn server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .unwrap();
     });
 
-    while let Some(result) = receiver.recv().await {
-        println!("{:?}", result);
-        // TODO:Excute bot cmd asynchronously.
-        if let Some(context) = result.message_context {
+    while let Some(task) = receiver.recv().await {
+        let ft_client = ft_client.clone();
+        let client = client.clone();
+
+        task::spawn(async move {
+            let output = match GsctlCommand::from(&task.message_context, ft_client).await {
+                GsctlCommand::Reboot(location) => {
+                    SshExcutor::new_ansible()
+                        .with_port(4222)
+                        .with_remote_cmd(RawCommand::build_reboot(&location))
+                        .execute()
+                        .await
+                }
+                GsctlCommand::Home(sub) => unimplemented!(),
+                GsctlCommand::Goinfre(sub) => unimplemented!(),
+                GsctlCommand::Help => unimplemented!(),
+            };
+
+            // TODO: send a message according to result of cmd.
             let token = SlackApiToken::new(config_env_var("SLACK_TEST_TOKEN").unwrap().into());
             let session = client.open_session(&token);
-
             let _ = session
-                .chat_post_message(&SlackApiChatPostMessageRequest::new(
-                    context.channel,
-                    SlackMessageContent::new().with_text("test success!!".to_owned()),
-                ))
+                .chat_post_message(
+                    &SlackApiChatPostMessageRequest::new(
+                        task.message_context.channel,
+                        SlackMessageContent::new().with_text("test success!!".to_owned()),
+                    )
+                    .with_thread_ts(task.message_context.ts),
+                )
                 .await;
-        };
+        });
     }
     Ok(())
 }
