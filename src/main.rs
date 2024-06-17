@@ -172,7 +172,9 @@ async fn server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .chat_post_message(
                     &SlackApiChatPostMessageRequest::new(
                         task.message_context.channel.clone(),
-                        SlackMessageContent::new().with_text("".to_owned()),
+                        SlackMessageContent::new().with_text(
+                            "Please wait while the command is being executed.".to_owned(),
+                        ),
                     )
                     .with_thread_ts(task.message_context.ts.clone()),
                 )
@@ -188,6 +190,7 @@ async fn server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         .unwrap();
 
                     if output.status.success() {
+                        debug!("Reboot done: {:?}", output.stdout);
                         "Reboot process is done, ready to use.".to_string()
                     } else {
                         debug!("Reboot failed with following error: {:?}", output.stdout);
@@ -197,32 +200,25 @@ async fn server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 GsctlCommand::Home(sub) => unimplemented!(),
                 GsctlCommand::Goinfre(sub) => unimplemented!(),
                 GsctlCommand::Help => format!(
-                    "사용법: {} [핵심 명령어] [하위 명령어]
-
-사전 정의된 명령어를 통해 시스템 작업을 관리하는 명령 줄 도구입니다.
+                    "사용법: {WAKEUP_WORD} [핵심 명령어] [하위 명령어]
 
 핵심 명령어:
-  reboot       시스템을 재부팅합니다. 하위 명령어는 지원되지 않습니다.
+  reboot       시스템을 재부팅합니다.
 
   home         'home' 디렉토리와 관련된 작업을 관리합니다.
     하위 명령어:
       reset    home 디렉토리 설정을 기본 상태로 재설정합니다.
-      close    home 디렉토리에 있는 모든 활성 연결을 종료합니다.
-
-  goinfre      'goinfre' 공간을 관리합니다.
-    하위 명령어:
-      reset    goinfre 공간을 초기 상태로 재설정합니다.
+      close    home과 pc의 연결을 끊습니다.
 
 일반 옵션:
   -h, --help   이 도움말 메시지를 보여주고 종료합니다.
 
 예제:
-  gst reboot                 시스템을 재부팅합니다.
-  gst home reset             home 디렉토리 설정을 기본값으로 재설정합니다.
-  gst goinfre reset          goinfre 공간을 원래 상태로 재설정합니다.
+   {WAKEUP_WORD} reboot
+   {WAKEUP_WORD} home reset
+   {WAKEUP_WORD} goinfre reset
 
-인식할 수 없는 명령어나 하위 명령어가 제공될 경우 이 도움말이 표시됩니다.",
-                    WAKEUP_WORD
+인식할 수 없는 명령어나 하위 명령어가 제공될 경우 이 도움말이 표시됩니다."
                 ),
                 GsctlCommand::Error(msg) => {
                     debug!("gsctl command error with: {msg}");
