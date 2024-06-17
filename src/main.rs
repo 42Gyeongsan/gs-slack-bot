@@ -190,10 +190,13 @@ async fn server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         .unwrap();
 
                     if output.status.success() {
-                        debug!("Reboot done: {:?}", output.stdout);
+                        debug!("Reboot done: {}", format!("{:?}", output.stdout));
                         "Reboot process is done, ready to use.".to_string()
                     } else {
-                        debug!("Reboot failed with following error: {:?}", output.stdout);
+                        debug!(
+                            "Reboot failed with following error: {}",
+                            format!("{:?}", output.stdout)
+                        );
                         "Reboot failed.".to_string()
                     }
                 }
