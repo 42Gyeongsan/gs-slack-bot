@@ -41,7 +41,7 @@ pub enum GsctlCommand {
 }
 
 fn check_hostname(raw_text: &str) -> bool {
-    let re = Regex::new(r"c[1-3]{1}r\d{1,2}s\d{1,2}").unwrap();
+    let re = Regex::new(r"c[1-3]{1}(r\d{1,2})?(s\d{1,2})?").unwrap();
 
     re.is_match(raw_text)
 }
