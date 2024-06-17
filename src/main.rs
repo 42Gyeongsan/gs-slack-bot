@@ -189,14 +189,13 @@ async fn server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         .await
                         .unwrap();
 
+                    let stdout = String::from_utf8(output.stdout).unwrap_or_default();
+
                     if output.status.success() {
-                        debug!("Reboot done: {}", format!("{:?}", output.stdout));
+                        debug!("Reboot done: {stdout}");
                         "Reboot process is done, ready to use.".to_string()
                     } else {
-                        debug!(
-                            "Reboot failed with following error: {}",
-                            format!("{:?}", output.stdout)
-                        );
+                        debug!("Reboot failed with following error: {stdout}");
                         "Reboot failed.".to_string()
                     }
                 }
@@ -224,7 +223,7 @@ async fn server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     인식할 수 없는 명령어나 하위 명령어가 제공될 경우 이 도움말이 표시됩니다."
                 ),
                 GsctlCommand::Error(msg) => {
-                    debug!("gsctl command error with: {msg}");
+                    debug!("{WAKEUP_WORD} command error with: {msg}");
                     "An internal server error has occurred. Please contact @Yondoo.".to_string()
                 }
             };
