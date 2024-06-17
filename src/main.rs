@@ -2,6 +2,7 @@ use ft_api::{AuthInfo, FtApiToken, FtClient, FtClientReqwestConnector};
 use gs_slack_bot::{
     bot_cmd::{BotTask, GsctlCommand, SlackMessageContext, SubCommand},
     excutor::{RawCommand, SshExcutor},
+    WAKEUP_WORD,
 };
 use slack_morphism::prelude::*;
 
@@ -9,12 +10,14 @@ use bytes::Bytes;
 use http_body_util::combinators::BoxBody;
 use http_body_util::{BodyExt, Empty, Full};
 use hyper::Response;
-use tracing::*;
+use tracing::{debug, *};
 
 use axum::Extension;
-use std::convert::Infallible;
-use std::sync::Arc;
+use std::{convert::Infallible, os::unix::process::ExitStatusExt, process::ExitStatus};
+use std::{process::ExitCode, sync::Arc};
 use tokio::{net::TcpListener, sync::mpsc, task};
+
+use crate::log::debug;
 
 async fn test_oauth_install_function(
     resp: SlackOAuthV2AccessTokenResponse,
@@ -166,29 +169,75 @@ async fn server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let client = client.clone();
 
         task::spawn(async move {
-            let output = match GsctlCommand::from(&task.message_context, ft_client).await {
-                GsctlCommand::Reboot(location) => {
-                    SshExcutor::new_ansible()
-                        .with_port(4222)
-                        .with_remote_cmd(RawCommand::build_reboot(&location))
-                        .execute()
-                        .await
-                }
-                GsctlCommand::Home(sub) => unimplemented!(),
-                GsctlCommand::Goinfre(sub) => unimplemented!(),
-                GsctlCommand::Help => unimplemented!(),
-                GsctlCommand::Error(msg) => todo!(),
-            };
-
-            // TODO: send a message according to result of cmd.
             let token = SlackApiToken::new(config_env_var("SLACK_TEST_TOKEN").unwrap().into());
             let session = client.open_session(&token);
             let _ = session
                 .chat_post_message(
                     &SlackApiChatPostMessageRequest::new(
+                        task.message_context.channel.clone(),
+                        SlackMessageContent::new().with_text("".to_owned()),
+                    )
+                    .with_thread_ts(task.message_context.ts.clone()),
+                )
+                .await;
+
+            let result_message = match GsctlCommand::from(&task.message_context, ft_client).await {
+                GsctlCommand::Reboot(location) => {
+                    let output = SshExcutor::new_ansible()
+                        .with_port(4222)
+                        .with_remote_cmd(RawCommand::build_reboot(&location))
+                        .execute()
+                        .await
+                        .unwrap();
+
+                    if output.status.success() {
+                        "Reboot process is done, ready to use.".to_string()
+                    } else {
+                        debug!("Reboot failed with following error: {:?}", output.stdout);
+                        "Reboot failed.".to_string()
+                    }
+                }
+                GsctlCommand::Home(sub) => unimplemented!(),
+                GsctlCommand::Goinfre(sub) => unimplemented!(),
+                GsctlCommand::Help => format!(
+                    "사용법: {} [핵심 명령어] [하위 명령어]
+
+사전 정의된 명령어를 통해 시스템 작업을 관리하는 명령 줄 도구입니다.
+
+핵심 명령어:
+  reboot       시스템을 재부팅합니다. 하위 명령어는 지원되지 않습니다.
+
+  home         'home' 디렉토리와 관련된 작업을 관리합니다.
+    하위 명령어:
+      reset    home 디렉토리 설정을 기본 상태로 재설정합니다.
+      close    home 디렉토리에 있는 모든 활성 연결을 종료합니다.
+
+  goinfre      'goinfre' 공간을 관리합니다.
+    하위 명령어:
+      reset    goinfre 공간을 초기 상태로 재설정합니다.
+
+일반 옵션:
+  -h, --help   이 도움말 메시지를 보여주고 종료합니다.
+
+예제:
+  gst reboot                 시스템을 재부팅합니다.
+  gst home reset             home 디렉토리 설정을 기본값으로 재설정합니다.
+  gst goinfre reset          goinfre 공간을 원래 상태로 재설정합니다.
+
+인식할 수 없는 명령어나 하위 명령어가 제공될 경우 이 도움말이 표시됩니다.",
+                    WAKEUP_WORD
+                ),
+                GsctlCommand::Error(msg) => {
+                    debug!("gsctl command error with: {msg}");
+                    "An internal server error has occurred. Please contact @Yondoo.".to_string()
+                }
+            };
+
+            let _ = session
+                .chat_post_message(
+                    &SlackApiChatPostMessageRequest::new(
                         task.message_context.channel,
-                        SlackMessageContent::new()
-                            .with_text(format!("Result: {:?}", output.unwrap())),
+                        SlackMessageContent::new().with_text(result_message),
                     )
                     .with_thread_ts(task.message_context.ts),
                 )

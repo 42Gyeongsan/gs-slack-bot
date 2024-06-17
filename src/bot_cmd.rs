@@ -7,6 +7,8 @@ use regex::Regex;
 use slack_morphism::prelude::*;
 use std::{collections::VecDeque, sync::Arc, vec};
 
+use crate::WAKEUP_WORD;
+
 #[derive(Debug)]
 pub struct BotTask {
     pub message_context: SlackMessageContext,
@@ -52,7 +54,7 @@ impl GsctlCommand {
     ) -> Self {
         let mut token = context.text.split_whitespace();
 
-        if let Some("$gsctl") = token.next() {
+        if let Some(WAKEUP_WORD) = token.next() {
             match token.next() {
                 Some(subcommand) => match subcommand {
                     "reboot" => {
@@ -96,7 +98,6 @@ impl GsctlCommand {
                                 }
                             }
                         };
-
                         GsctlCommand::Reboot(location)
                     }
                     "home" => {
