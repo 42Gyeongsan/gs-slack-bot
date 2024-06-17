@@ -1,6 +1,6 @@
-use ft_api::{AuthInfo, FtApiToken, FtClient, FtClientReqwestConnector};
+use ft_api::{FtClient, FtClientReqwestConnector};
 use gs_slack_bot::{
-    bot_cmd::{BotTask, GsctlCommand, SlackMessageContext, SubCommand},
+    bot_cmd::{BotTask, GsctlCommand, SlackMessageContext},
     excutor::{RawCommand, SshExcutor},
     WAKEUP_WORD,
 };
@@ -13,11 +13,9 @@ use hyper::Response;
 use tracing::{debug, *};
 
 use axum::Extension;
-use std::{convert::Infallible, os::unix::process::ExitStatusExt, process::ExitStatus};
-use std::{process::ExitCode, sync::Arc};
+use std::convert::Infallible;
+use std::sync::Arc;
 use tokio::{net::TcpListener, sync::mpsc, task};
-
-use crate::log::debug;
 
 async fn test_oauth_install_function(
     resp: SlackOAuthV2AccessTokenResponse,
@@ -32,7 +30,7 @@ async fn test_push_event(
     Extension(event): Extension<SlackPushEvent>,
     Extension(sender): Extension<mpsc::Sender<BotTask>>,
 ) -> Response<BoxBody<Bytes, Infallible>> {
-    println!("Received push event: {:?}", event);
+    // println!("Received push event: {:?}", event);
 
     match event {
         SlackPushEvent::UrlVerification(url_ver) => {
@@ -80,7 +78,6 @@ async fn test_push_event(
                         },
                 }) = user_info
                 {
-                    println!("{real_name}");
                     let bot_cmd = BotTask {
                         message_context: SlackMessageContext {
                             channel,

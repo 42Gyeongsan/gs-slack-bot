@@ -1,11 +1,10 @@
 use ft_api::{
-    locations::{self, FtApiCampusLocationsRequest},
-    AuthInfo, FtApiToken, FtCampusId, FtClient, FtClientReqwestConnector, FtFilterField,
-    FtFilterOption, GS_CAMPUS_ID,
+    locations::FtApiCampusLocationsRequest, AuthInfo, FtApiToken, FtCampusId, FtClient,
+    FtClientReqwestConnector, FtFilterField, FtFilterOption, GS_CAMPUS_ID,
 };
 use regex::Regex;
 use slack_morphism::prelude::*;
-use std::{collections::VecDeque, sync::Arc, vec};
+use std::sync::Arc;
 
 use crate::WAKEUP_WORD;
 
