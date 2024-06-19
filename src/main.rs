@@ -193,7 +193,7 @@ async fn server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         (Ok(()), "Reboot process is done.".to_string())
                     } else {
                         debug!("Reboot failed with following error: {stdout}");
-                        (Err(()), "Reboot failed. @yondoo".to_string())
+                        (Err(()), "Reboot failed. <@yondoo>".to_string())
                     }
                 }
                 GsctlCommand::Home(sub) => unimplemented!(),
@@ -226,7 +226,7 @@ async fn server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     debug!("{WAKEUP_WORD} command error with: {msg}");
                     (
                         Err(()),
-                        "An internal server error has occurred. Please contact @Yondoo."
+                        "An internal server error has occurred. Please contact <@yondoo>"
                             .to_string(),
                     )
                 }
