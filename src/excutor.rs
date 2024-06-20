@@ -1,4 +1,4 @@
-use ft_api::FtHost;
+use ft_api::{locations, FtHost, FtLoginId};
 use rsb_derive::Builder;
 use std::io;
 use std::process::Output;
@@ -19,10 +19,38 @@ pub struct RawCommand<'a> {
 }
 
 impl<'a> RawCommand<'a> {
-    pub fn build_reboot(location_hostname: &'a FtHost) -> Self {
+    pub fn build_pc_reboot(location_hostname: &'a FtHost) -> Self {
         RawCommand {
             cmd: "ansible-playbook",
             args: vec!["-l", location_hostname.0.as_str(), "reboot.yml"],
+        }
+    }
+
+    pub fn build_home_create(login: &'a FtLoginId) -> Self {
+        RawCommand {
+            cmd: "homemakerctl homes",
+            args: vec!["-i", login.0.as_str(), "create"],
+        }
+    }
+
+    pub fn build_home_delete(login: &'a FtLoginId) -> Self {
+        RawCommand {
+            cmd: "homemakerctl homes",
+            args: vec!["-i", login.0.as_str(), "delete"],
+        }
+    }
+
+    pub fn build_home_close(login: &'a FtLoginId, location_hostname: &'a String) -> Self {
+        RawCommand {
+            cmd: "homemakerctl homes",
+            args: vec![
+                "-i",
+                login.0.as_str(),
+                "-q",
+                location_hostname,
+                "-f",
+                "close",
+            ],
         }
     }
 
@@ -32,8 +60,12 @@ impl<'a> RawCommand<'a> {
 }
 
 impl<'b, 'r> SshExcutor<'b, 'r> {
-    pub fn new_ansible() -> Self {
+    pub fn new_ansible_cluster() -> Self {
         SshExcutor::new("ansible@ansiblecluster")
+    }
+
+    pub fn new_student_storage() -> Self {
+        SshExcutor::new("root@student-storage")
     }
 
     pub async fn execute(self) -> io::Result<Output> {
@@ -64,9 +96,9 @@ impl<'b, 'r> SshExcutor<'b, 'r> {
 #[tokio::test]
 async fn excute_ansible() {
     let location_hostname = FtHost::new("c1r2s3".into());
-    let ansible = SshExcutor::new_ansible()
+    let ansible = SshExcutor::new_ansible_cluster()
         .with_port(4222)
-        .with_remote_cmd(RawCommand::build_reboot(&location_hostname));
+        .with_remote_cmd(RawCommand::build_pc_reboot(&location_hostname));
 
     let output = ansible.execute().await;
 

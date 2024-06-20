@@ -1,6 +1,6 @@
 use ft_api::{FtClient, FtClientReqwestConnector};
 use gs_slack_bot::{
-    bot_cmd::{BotTask, GsctlCommand, SlackMessageContext},
+    bot_cmd::{BotTask, GsctlCommand, GsctlError, SlackMessageContext},
     excutor::{RawCommand, SshExcutor},
     WAKEUP_WORD,
 };
@@ -168,39 +168,42 @@ async fn server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         task::spawn(async move {
             let token = SlackApiToken::new(config_env_var("SLACK_TEST_TOKEN").unwrap().into());
             let session = slack_client.open_session(&token);
-            let _ = session
-                .reactions_add(&SlackApiReactionsAddRequest::new(
-                    task.message_context.channel.clone(),
-                    SlackReactionName::new("groot-loading".to_owned()),
-                    task.message_context.ts.clone(),
-                ))
-                .await;
 
-            let (result, message) = match GsctlCommand::from(&task.message_context, ft_client).await
-            {
-                GsctlCommand::Reboot(location) => {
-                    let output = SshExcutor::new_ansible()
-                        .with_port(4222)
-                        .with_remote_cmd(RawCommand::build_reboot(&location))
-                        .execute()
-                        .await
-                        .unwrap();
+            let result = match GsctlCommand::from(&task.message_context, ft_client).await {
+                Ok(command) => {
+                    let _ = session
+                        .reactions_add(&SlackApiReactionsAddRequest::new(
+                            task.message_context.channel.clone(),
+                            SlackReactionName::new("groot-loading".to_owned()),
+                            task.message_context.ts.clone(),
+                        ))
+                        .await;
 
-                    let stdout = String::from_utf8(output.stdout).unwrap_or_default();
+                    match command {
+                        GsctlCommand::Reboot(location) => {
+                            let output = SshExcutor::new_ansible_cluster()
+                                .with_port(4222)
+                                .with_remote_cmd(RawCommand::build_pc_reboot(&location))
+                                .execute()
+                                .await
+                                .unwrap();
 
-                    if output.status.success() {
-                        debug!("Reboot done: {stdout}");
-                        (Ok(()), "Reboot process is done.".to_string())
-                    } else {
-                        debug!("Reboot failed with following error: {stdout}");
-                        (Err(()), "Reboot failed.".to_string())
+                            let stdout = String::from_utf8(output.stdout).unwrap_or_default();
+
+                            if output.status.success() {
+                                debug!("Reboot done: {stdout}");
+                                Ok(None)
+                            } else {
+                                debug!("Reboot failed with following error: {stdout}");
+                                Err(Some("Reboot failed.".to_string()))
+                            }
+                        }
+                        GsctlCommand::Home(subcommand) => unimplemented!(),
+                        GsctlCommand::Goinfre(subcommand) => unimplemented!(),
                     }
                 }
-                GsctlCommand::Home(subcommand) => unimplemented!(),
-                GsctlCommand::Goinfre(subcommand) => unimplemented!(),
-                GsctlCommand::Help => (
-                    Ok(()),
-                    format!(
+                Err(error) => match error {
+                    GsctlError::Help => Err(Some(format!(
                         "사용법: {WAKEUP_WORD} [핵심 명령어] [하위 명령어]
 
 핵심 명령어:
@@ -219,29 +222,27 @@ async fn server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
    {WAKEUP_WORD} home reset
 
 인식할 수 없는 명령어나 하위 명령어가 제공될 경우 이 도움말이 표시됩니다."
-                    ),
-                ),
-                GsctlCommand::Error(msg) => {
-                    debug!("{WAKEUP_WORD} command error with: {msg}");
-                    (
-                        Err(()),
-                        "An internal server error has occurred. Please contact staff".to_string(),
-                    )
-                }
+                    ))),
+                    GsctlError::Error(msg) => {
+                        let command = task.message_context.text.clone();
+                        debug!("{} command error with: {msg}", command);
+                        Err(Some(format!("Command can not be execute: {}", command)))
+                    }
+                    GsctlError::NotACommand => Err(None),
+                },
             };
 
-            let _ = session
-                .reactions_remove(
-                    &SlackApiReactionsRemoveRequest::new(SlackReactionName::new(
-                        "groot-loading".to_owned(),
-                    ))
-                    .with_channel(task.message_context.channel.clone())
-                    .with_timestamp(task.message_context.ts.clone()),
-                )
-                .await;
-
             match result {
-                Ok(_) => {
+                Ok(res) => {
+                    let _ = session
+                        .reactions_remove(
+                            &SlackApiReactionsRemoveRequest::new(SlackReactionName::new(
+                                "groot-loading".to_owned(),
+                            ))
+                            .with_channel(task.message_context.channel.clone())
+                            .with_timestamp(task.message_context.ts.clone()),
+                        )
+                        .await;
                     let _ = session
                         .reactions_add(&SlackApiReactionsAddRequest::new(
                             task.message_context.channel.clone(),
@@ -249,8 +250,19 @@ async fn server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                             task.message_context.ts.clone(),
                         ))
                         .await;
+                    if let Some(msg) = res {
+                        let _ = session
+                            .chat_post_message(
+                                &SlackApiChatPostMessageRequest::new(
+                                    task.message_context.channel,
+                                    SlackMessageContent::new().with_text(msg),
+                                )
+                                .with_thread_ts(task.message_context.ts),
+                            )
+                            .await;
+                    }
                 }
-                Err(_) => {
+                Err(Some(msg)) => {
                     let _ = session
                         .reactions_add(&SlackApiReactionsAddRequest::new(
                             task.message_context.channel.clone(),
@@ -258,18 +270,18 @@ async fn server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                             task.message_context.ts.clone(),
                         ))
                         .await;
+                    let _ = session
+                        .chat_post_message(
+                            &SlackApiChatPostMessageRequest::new(
+                                task.message_context.channel,
+                                SlackMessageContent::new().with_text(msg),
+                            )
+                            .with_thread_ts(task.message_context.ts),
+                        )
+                        .await;
                 }
+                Err(None) => {}
             }
-
-            let _ = session
-                .chat_post_message(
-                    &SlackApiChatPostMessageRequest::new(
-                        task.message_context.channel,
-                        SlackMessageContent::new().with_text(message),
-                    )
-                    .with_thread_ts(task.message_context.ts),
-                )
-                .await;
         });
     }
     Ok(())
