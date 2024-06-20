@@ -58,7 +58,7 @@ impl GsctlCommand {
                 Some(subcommand) => match subcommand {
                     "reboot" => {
                         let location = match token.next() {
-                            Some(location) if check_hostname(location) => {
+                            Some(location) if check_hostname(location) && context.is_admin => {
                                 ft_api::FtHost(location.to_string())
                             }
                             Some(_) => return GsctlCommand::Help,

@@ -110,7 +110,7 @@ fn test_error_handler(
 }
 
 async fn server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let client: Arc<SlackHyperClient> =
+    let slack_client: Arc<SlackHyperClient> =
         Arc::new(SlackClient::new(SlackClientHyperConnector::new()?));
 
     let addr = std::net::SocketAddr::from(([127, 0, 0, 1], 8080));
@@ -124,7 +124,7 @@ async fn server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     );
 
     let listener_environment: Arc<SlackHyperListenerEnvironment> = Arc::new(
-        SlackClientEventsListenerEnvironment::new(client.clone())
+        SlackClientEventsListenerEnvironment::new(slack_client.clone())
             .with_error_handler(test_error_handler),
     );
     let signing_secret: SlackSigningSecret = config_env_var("SLACK_SIGNING_SECRET")?.into();
@@ -163,11 +163,11 @@ async fn server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     while let Some(task) = receiver.recv().await {
         let ft_client = ft_client.clone();
-        let client = client.clone();
+        let slack_client = slack_client.clone();
 
         task::spawn(async move {
             let token = SlackApiToken::new(config_env_var("SLACK_TEST_TOKEN").unwrap().into());
-            let session = client.open_session(&token);
+            let session = slack_client.open_session(&token);
             let _ = session
                 .reactions_add(&SlackApiReactionsAddRequest::new(
                     task.message_context.channel.clone(),
@@ -193,41 +193,39 @@ async fn server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         (Ok(()), "Reboot process is done.".to_string())
                     } else {
                         debug!("Reboot failed with following error: {stdout}");
-                        (Err(()), "Reboot failed. <@yondoo>".to_string())
+                        (Err(()), "Reboot failed.".to_string())
                     }
                 }
-                GsctlCommand::Home(sub) => unimplemented!(),
-                GsctlCommand::Goinfre(sub) => unimplemented!(),
+                GsctlCommand::Home(subcommand) => unimplemented!(),
+                GsctlCommand::Goinfre(subcommand) => unimplemented!(),
                 GsctlCommand::Help => (
                     Ok(()),
                     format!(
                         "사용법: {WAKEUP_WORD} [핵심 명령어] [하위 명령어]
 
-            핵심 명령어:
-              reboot       시스템을 재부팅합니다.
+핵심 명령어:
+  reboot       시스템을 재부팅합니다.
 
-              home         'home' 디렉토리와 관련된 작업을 관리합니다.
-                하위 명령어:
-                  reset    home 디렉토리 설정을 기본 상태로 재설정합니다.
-                  close    home과 pc의 연결을 끊습니다.
+  home         'home' 디렉토리와 관련된 작업을 관리합니다.
+    하위 명령어:
+      reset    home을 기본 상태로 재설정합니다.
+      close    remote home과 pc의 연결을 끊습니다.
 
-            일반 옵션:
-              -h, --help   이 도움말 메시지를 보여주고 종료합니다.
+일반 옵션:
+  -h, --help   이 도움말 메시지를 보여주고 종료합니다.
 
-            예제:
-               {WAKEUP_WORD} reboot
-               {WAKEUP_WORD} home reset
-               {WAKEUP_WORD} goinfre reset
+예제:
+   {WAKEUP_WORD} reboot
+   {WAKEUP_WORD} home reset
 
-            인식할 수 없는 명령어나 하위 명령어가 제공될 경우 이 도움말이 표시됩니다."
+인식할 수 없는 명령어나 하위 명령어가 제공될 경우 이 도움말이 표시됩니다."
                     ),
                 ),
                 GsctlCommand::Error(msg) => {
                     debug!("{WAKEUP_WORD} command error with: {msg}");
                     (
                         Err(()),
-                        "An internal server error has occurred. Please contact <@yondoo>"
-                            .to_string(),
+                        "An internal server error has occurred. Please contact staff".to_string(),
                     )
                 }
             };
