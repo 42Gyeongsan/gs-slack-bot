@@ -204,7 +204,7 @@ async fn server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 }
                 Err(error) => match error {
                     GsctlError::Help => Err(Some(format!(
-                        "사용법: {WAKEUP_WORD} [핵심 명령어] [하위 명령어]
+                        "'''사용법: {WAKEUP_WORD} [핵심 명령어] [하위 명령어]
 
 핵심 명령어:
   reboot       시스템을 재부팅합니다.
@@ -221,7 +221,7 @@ async fn server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
    {WAKEUP_WORD} reboot
    {WAKEUP_WORD} home reset
 
-인식할 수 없는 명령어나 하위 명령어가 제공될 경우 이 도움말이 표시됩니다."
+인식할 수 없는 명령어나 하위 명령어가 제공될 경우 이 도움말이 표시됩니다.'''"
                     ))),
                     GsctlError::Error(msg) => {
                         let command = task.message_context.text.clone();
